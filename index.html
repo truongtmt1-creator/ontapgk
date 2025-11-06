@@ -93,7 +93,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label for="student-class" class="block text-sm font-medium text-gray-700">Lớp</label>
-                    <select id="student-class" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500">
+                    <select id="student-class" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" onchange="updateStudentName()">
                         <option value="">-- Chọn Lớp --</option>
                         <option value="7.1">7.1</option>
                         <option value="7.2">7.2</option>
@@ -110,7 +110,7 @@
                 </div>
                 <div>
                     <label for="student-stt" class="block text-sm font-medium text-gray-700">STT</label>
-                    <input type="number" id="student-stt" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Số thứ tự">
+                    <input type="number" id="student-stt" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Số thứ tự" oninput="updateStudentName()">
                 </div>
                 <div>
                     <label for="student-name" class="block text-sm font-medium text-gray-700">Họ và Tên</label>
@@ -135,6 +135,15 @@
         <div id="result" class="hidden mt-8">
             </div>
     </div>
+    
+    <form id="submission-form" class="hidden" target="_blank" method="POST" action="https://script.google.com/macros/s/AKfycbxHbV4GQguSKfE4erMY-XLC73LZLt9cIiiFbpDoaC1omilg4LXDTP5CgRDlrMufT0Ixcg/exec">
+        <input type="hidden" name="action" id="form-action">
+        <input type="hidden" name="HoTen" id="form-name">
+        <input type="hidden" name="Lop" id="form-class">
+        <input type="hidden" name="STT" id="form-stt">
+        <input type="hidden" name="DiemSo" id="form-score">
+        <input type="hidden" name="ThoiGian" id="form-time">
+    </form>
     
     <script src="script.js"></script>
 </body>
