@@ -428,6 +428,7 @@ function saveResultLocally(score, time) {
 }
 
 // Hiển thị kết quả (Đã sửa để hiển thị nội dung đáp án chi tiết)
+// Hiển thị kết quả (Đã sửa LẦN CUỐI để hiển thị toàn bộ nội dung đáp án)
 function renderResults(score, reviewData, time) {
     quizContainer.classList.add('hidden');
     submitBtn.classList.add('hidden');
@@ -465,32 +466,33 @@ function renderResults(score, reviewData, time) {
                 
                 return item.userKeys.map(key => {
                     const content = item.options[key] || `[Không tìm thấy nội dung cho ${key}]`;
-                    // Đã thêm thẻ span để có thể tạo kiểu trong tương lai nếu cần
+                    // Đã thêm thẻ span để làm nổi bật (A), (B)
                     return `<span class="font-semibold text-gray-700">(${key})</span> ${content}`; 
-                }).join('; ');
+                }).join('<br>'); // Dùng <br> để xuống dòng cho mỗi đáp án
             };
             
             const getCorrectAnswersContent = () => {
                 return item.correctKeys.map(key => {
                     const content = item.options[key] || `[Không tìm thấy nội dung cho ${key}]`;
                     return `<span class="font-semibold text-gray-700">(${key})</span> ${content}`;
-                }).join('; ');
+                }).join('<br>'); // Dùng <br> để xuống dòng cho mỗi đáp án
             };
             // ⭐ KẾT THÚC LOGIC ÁNH XẠ ⭐
 
+            // ⭐ ĐOẠN MÃ HTML ĐƯỢC CHÈN ĐÃ SỬA ⭐
             resultHtml += `
                 <div class="p-4 mb-4 border-l-4 ${statusClass} rounded-md">
                     <p class="font-bold text-gray-800">Câu ${item.index}: ${item.question}</p>
                     <p class="mt-2">Trạng thái: <span class="text-red-600 font-bold">${statusText}</span></p>
                     
                     <p class="mt-2 text-sm">
-                        <span class="font-medium">Đáp án của bạn:</span> 
-                        <span class="text-red-600">${getUserAnswersContent()}</span>
+                        <span class="font-medium block mb-1">Đáp án của bạn:</span> 
+                        <span class="text-red-600 block pl-4">${getUserAnswersContent()}</span>
                     </p>
                     
-                    <p class="text-sm">
-                        <span class="font-medium">Đáp án đúng:</span> 
-                        <span class="text-green-600 font-semibold">${getCorrectAnswersContent()}</span>
+                    <p class="text-sm mt-2">
+                        <span class="font-medium block mb-1">Đáp án đúng:</span> 
+                        <span class="text-green-600 font-semibold block pl-4">${getCorrectAnswersContent()}</span>
                     </p>
                     
                     <div class="explanation mt-3 border-t pt-2 text-sm text-gray-700">
@@ -500,7 +502,7 @@ function renderResults(score, reviewData, time) {
             `;
         }
     });
-    
+    // Thẻ đóng div cho review-details
     resultHtml += `</div>`; 
 
     if (wrongAnswerCount === 0) {
