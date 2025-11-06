@@ -410,8 +410,24 @@ async function updateActiveUsersCount() {
  * Tăng và lấy tổng số lượt truy cập (GET action=count) (bị lỗi CORS với fetch) => Vô hiệu hóa
  */
 async function updateVisitCounter() {
-    if (visitCounterElement) {
-        visitCounterElement.textContent = 'Tính năng thống kê đang tạm tắt.';
+    if (!visitCounterElement) return; 
+
+    // Gửi yêu cầu GET đến Apps Script kèm tham số action=count
+    const counterApiUrl = GOOGLE_SHEET_URL + '?action=count'; 
+    
+    try {
+        const response = await fetch(counterApiUrl);
+        const result = await response.json();
+        
+        if (result && typeof result.totalVisits === 'number') {
+            // Cập nhật số lượt truy cập lên giao diện
+            visitCounterElement.textContent = result.totalVisits.toLocaleString('en-US'); 
+        } else {
+            visitCounterElement.textContent = '0';
+        }
+    } catch (error) {
+        console.error("Lỗi khi tải bộ đếm truy cập:", error);
+        visitCounterElement.textContent = 'Lỗi';
     }
 }
 
@@ -439,8 +455,7 @@ function saveResultLocally(score, time) {
     localStorage.setItem('quizResults', JSON.stringify(quizResults));
 }
 
-// Hiển thị kết quả (Đã sửa để hiển thị nội dung đáp án chi tiết)
-// Hiển thị kết quả (Đã sửa LẦN CUỐI để hiển thị toàn bộ nội dung đáp án)
+// Hiển thị kết quả (hiển thị nội dung đáp án chi tiết)
 function renderResults(score, reviewData, time) {
     quizContainer.classList.add('hidden');
     submitBtn.classList.add('hidden');
