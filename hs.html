@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Danh Sách Học Sinh</title>
+    <!-- Tải Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f7f9; }
+        .modal-overlay {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modal-overlay.open {
+            visibility: visible;
+            opacity: 1;
+        }
+        .table-responsive {
+            overflow-x: auto;
+        }
+        th, td {
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-gray-800 mb-2 border-b-4 border-emerald-500 pb-2">
+            Quản Lý Danh Sách Học Sinh
+        </h1>
+        <div class="text-sm text-red-700 bg-red-100 p-3 rounded-lg mb-6 border border-red-300">
+            ⚠️ **LƯU Ý:** Dữ liệu được lưu trong trình duyệt (`localStorage`). Việc **Thêm/Xóa/Sửa** sẽ kích hoạt sắp xếp lại theo **Tên** và cập nhật lại **STT** tự động.
+        </div>
+
+        <!-- Thanh công cụ: Tìm kiếm và Thao tác -->
+        <div class="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4 mb-8">
+            <input
+                type="text"
+                id="search-input"
+                placeholder="Tra cứu theo Tên, Lớp, Khối hoặc ID..."
+                oninput="filterStudents()"
+                class="flex-grow p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-emerald-500 focus:border-emerald-500 transition"
+            />
+            <button
+                onclick="openModal()"
+                class="flex-shrink-0 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-700 transition duration-200 transform hover:scale-[1.02]"
+            >
+                + Thêm Học Sinh Mới
+            </button>
+            <button
+                onclick="exportStudents()"
+                class="flex-shrink-0 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200"
+            >
+                Tải Xuống (Xuất JSON)
+            </button>
+        </div>
+
+        <!-- Danh sách Học sinh (Table) -->
+        <div class="table-responsive bg-white rounded-xl shadow-lg p-4">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[5%]">Khối</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[5%]">STT</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Họ và Tên</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Lớp</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">ID</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="student-list" class="bg-white divide-y divide-gray-200">
+                    <!-- Students rendered here -->
+                    <tr id="loading-message"><td colspan="6" class="text-center p-12 text-emerald-600 text-lg font-medium">Đang tải dữ liệu học sinh...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Message/Error Container -->
+        <div id="message-container" class="mt-4 hidden p-3 rounded-lg"></div>
+    </div>
+
+    <!-- Modal Form (Chỉnh sửa/Thêm mới) -->
+    <div id="student-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
+            <h2 id="modal-title" class="text-2xl font-bold text-emerald-600 mb-6 border-b pb-2">Thêm Học Sinh Mới</h2>
+            <form id="student-form" class="space-y-4">
+                <!-- ID Học sinh (Hiển thị khi chỉnh sửa) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">ID Học sinh</label>
+                    <input 
+                        type="text" 
+                        id="student-ID-display" 
+                        readonly
+                        class="mt-1 block w-full rounded-lg border-gray-300 bg-gray-100 text-gray-600 shadow-sm border p-2 font-mono"
+                    />
+                    <!-- Input ẩn để gửi ID khi submit form -->
+                    <input type="hidden" id="student-ID-hidden" name="ID"/>
+                </div>
+
+                <!-- Họ và Tên (Mapping từ TEN) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Họ và Tên (*)</label>
+                    <input
+                        type="text"
+                        id="HoVaTen" name="HoVaTen" required
+                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border p-2"
+                        placeholder="Ví dụ: Nguyễn Văn A (Phần này sẽ được dùng để sắp xếp)"
+                    />
+                </div>
+                
+                <!-- Khối (Khối) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Khối</label>
+                    <input
+                        type="text"
+                        id="Khoi" name="Khoi" 
+                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border p-2"
+                        placeholder="Ví dụ: 7, 10, 12"
+                    />
+                </div>
+
+                <!-- Lớp (Mapping từ LƠP) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Lớp (*)</label>
+                    <input
+                        type="text"
+                        id="Lop" name="Lop" required
+                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border p-2"
+                        placeholder="Ví dụ: 7.1 hoặc 10A1"
+                    />
+                </div>
+
+                <!-- Nút thao tác -->
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                    <button
+                        type="button"
+                        onclick="closeModal()"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition duration-150"
+                    >
+                        Hủy
+                    </button>
+                    <button
+                        type="submit"
+                        class="px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 transition duration-150"
+                    >
+                        Lưu Học Sinh
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- Cấu hình và Biến toàn cục ---
+        // Sử dụng students.json như một tệp mẫu nếu không có dữ liệu local
+        const JSON_FILE_PATH = 'students.json'; 
+        const LOCAL_STORAGE_KEY = 'studentManagementData';
+        let studentsData = [];
+        const studentList = document.getElementById('student-list');
+        const modal = document.getElementById('student-modal');
+        const form = document.getElementById('student-form');
+        const messageContainer = document.getElementById('message-container');
+        const studentIDDisplay = document.getElementById('student-ID-display');
+        const studentIDHidden = document.getElementById('student-ID-hidden');
+
+        // --- Hàm hỗ trợ ---
+
+        /**
+         * Trích xuất Tên (từ cuối cùng) từ Họ và Tên đầy đủ
+         * @param {string} fullName - Họ và Tên đầy đủ
+         * @returns {string} Phần tên (từ cuối cùng)
+         */
+        function extractLastName(fullName) {
+            if (!fullName) return "";
+            // Loại bỏ khoảng trắng thừa và tách chuỗi
+            const parts = fullName.trim().split(/\s+/);
+            // Trả về từ cuối cùng
+            return parts.length > 0 ? parts[parts.length - 1] : "";
+        }
+
+        /**
+         * Sắp xếp danh sách học sinh theo Tên (từ cuối cùng của Họ và Tên)
+         * và cập nhật lại STT (Số Thứ Tự)
+         */
+        function sortAndReindexStudents() {
+            // 1. Gán Tên (từ cuối cùng) cho mục đích sắp xếp
+            studentsData.forEach(s => {
+                s.Ten = extractLastName(s.HoVaTen);
+            });
+
+            // 2. Sắp xếp: sử dụng localeCompare với 'vi' để đảm bảo sắp xếp tiếng Việt
+            // Sắp xếp theo Ten (tăng dần)
+            studentsData.sort((a, b) => {
+                return a.Ten.localeCompare(b.Ten, 'vi', { sensitivity: 'base' });
+            });
+
+            // 3. Cập nhật lại STT (Số Thứ Tự)
+            studentsData.forEach((s, index) => {
+                s.STT = index + 1;
+            });
+
+            saveStudentsToLocal(studentsData);
+        }
+
+        // --- Khởi tạo và Tải dữ liệu ---
+
+        /**
+         * Dữ liệu mẫu (nếu students.json không tồn tại) - Sử dụng cấu trúc nội bộ
+         */
+        const mockStudents = [
+            { ID: 'HS001', HoVaTen: 'Đoàn Phạm Khánh An', Lop: '7.1', Khoi: '7' },
+            { ID: 'HS002', HoVaTen: 'Trần Thị Thu Trang', Lop: '11B3', Khoi: '11' },
+            { ID: 'HS003', HoVaTen: 'Lê Văn Hiếu', Lop: '10A1', Khoi: '10' },
+            { ID: 'HS004', HoVaTen: 'Phạm Thị Mai', Lop: '12C5', Khoi: '12' },
+        ];
+
+
+        /**
+         * Tải dữ liệu từ localStorage (ưu tiên) hoặc từ students.json (lần đầu)
+         */
+        async function loadStudents() {
+            const loadingMessage = document.getElementById('loading-message');
+            
+            // 1. Cố gắng tải từ LocalStorage
+            const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (localData) {
+                studentsData = JSON.parse(localData);
+                console.log("Dữ liệu được tải từ localStorage.");
+                sortAndReindexStudents(); // Đảm bảo STT/Tên luôn đúng
+                renderStudents(studentsData);
+                return;
+            }
+
+            // 2. Nếu không có trong LocalStorage, tải từ students.json hoặc dùng mock data
+            try {
+                const response = await fetch(JSON_FILE_PATH);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const rawData = await response.json();
+                
+                // ÁNH XẠ CẤU TRÚC JSON MỚI VÀO CẤU TRÚC NỘI BỘ
+                studentsData = rawData.map(item => ({
+                    // Giữ lại ID nếu có, nếu không thì tạo mới
+                    ID: item.ID || ('HS' + Date.now() + Math.random().toString(36).substring(2, 6)),
+                    // Map TEN (new) or HoVaTen (old/mock) to HoVaTen (internal)
+                    HoVaTen: item.TEN || item.HoVaTen || '', 
+                    // Map LƠP (new, user's input) or Lop (old/mock) to Lop (internal)
+                    Lop: item.LƠP || item.Lop || '', 
+                    // Map Khối (new) or Khoi (old/mock) to Khoi (internal)
+                    Khoi: item.Khối || item.Khoi || '', 
+                }));
+
+                console.log("Dữ liệu được tải từ students.json và đã map cấu trúc.");
+            } catch (e) {
+                console.warn(`Không thể tải ${JSON_FILE_PATH}. Sử dụng dữ liệu mẫu.`);
+                studentsData = mockStudents;
+            } finally {
+                sortAndReindexStudents(); // Sắp xếp và đánh lại STT ban đầu
+                if (loadingMessage) loadingMessage.remove(); 
+                renderStudents(studentsData);
+            }
+        }
+
+        /**
+         * Lưu mảng học sinh hiện tại vào localStorage
+         * @param {Array} data - Mảng học sinh
+         */
+        function saveStudentsToLocal(data) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+        }
+
+        /**
+         * Hiển thị thông báo (thành công/lỗi)
+         */
+        function displayMessage(msg, type) {
+            messageContainer.className = 'mt-4 p-3 rounded-lg border';
+            if (type === 'success') {
+                messageContainer.classList.add('bg-green-100', 'text-green-700', 'border-green-300');
+            } else {
+                messageContainer.classList.add('bg-red-100', 'text-red-700', 'border-red-300');
+            }
+            messageContainer.innerHTML = msg;
+            
+            setTimeout(() => {
+                messageContainer.className = 'mt-4 hidden p-3 rounded-lg';
+            }, 5000);
+        }
+
+        // --- Render UI ---
+
+        /**
+         * Render danh sách học sinh ra giao diện (Table rows)
+         */
+        function renderStudents(students) {
+            if (students.length === 0) {
+                studentList.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-500">
+                    Không tìm thấy học sinh nào. Hãy thêm học sinh mới!
+                </td></tr>`;
+                return;
+            }
+
+            const htmlContent = students.map((s) => {
+                return `
+                    <tr class="hover:bg-gray-50 transition duration-150">
+                        <td class="px-3 py-4 text-sm font-medium text-gray-900">${s.Khoi || ''}</td>
+                        <td class="px-3 py-4 text-sm font-medium text-gray-900">${s.STT || ''}</td>
+                        <td class="px-6 py-4 text-sm text-gray-800 font-semibold">${s.HoVaTen}</td>
+                        <td class="px-6 py-4 text-sm text-emerald-600">${s.Lop}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">${s.ID}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+                            <button
+                                onclick="openModal('${s.ID}')"
+                                class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 p-1 rounded-md"
+                                title="Chỉnh sửa"
+                            >
+                                Sửa
+                            </button>
+                            <button
+                                onclick="deleteStudent('${s.ID}')"
+                                class="text-red-600 hover:text-red-900 bg-red-100 p-1 rounded-md"
+                                title="Xóa"
+                            >
+                                Xóa
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            studentList.innerHTML = htmlContent;
+        }
+
+        /**
+         * Lọc và render lại danh sách học sinh
+         */
+        function filterStudents() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const filtered = studentsData.filter(s => 
+                s.HoVaTen.toLowerCase().includes(searchTerm) || 
+                s.Lop.toLowerCase().includes(searchTerm) ||
+                s.Khoi.toLowerCase().includes(searchTerm) ||
+                (s.ID && s.ID.toLowerCase().includes(searchTerm))
+            );
+            
+            renderStudents(filtered);
+        }
+
+        // --- Modal và Form Logic ---
+
+        /**
+         * Mở modal để thêm mới hoặc chỉnh sửa
+         * @param {string} [id=null] - ID của học sinh cần chỉnh sửa.
+         */
+        function openModal(id = null) {
+            form.reset();
+            let studentToEdit = null;
+
+            if (id) {
+                studentToEdit = studentsData.find(s => s.ID === id);
+                document.getElementById('modal-title').textContent = 'Chỉnh Sửa Thông Tin Học Sinh';
+                
+                // Cập nhật ID hiển thị và ID ẩn
+                studentIDDisplay.value = id;
+                studentIDHidden.value = id;
+                
+                // Điền dữ liệu vào form
+                document.getElementById('HoVaTen').value = studentToEdit.HoVaTen || '';
+                document.getElementById('Lop').value = studentToEdit.Lop || '';
+                document.getElementById('Khoi').value = studentToEdit.Khoi || '';
+
+            } else {
+                document.getElementById('modal-title').textContent = 'Thêm Học Sinh Mới';
+                // Xóa ID khi thêm mới
+                studentIDDisplay.value = 'Tự động tạo';
+                studentIDHidden.value = ''; 
+            }
+            
+            modal.classList.add('open');
+        }
+
+        /**
+         * Đóng modal
+         */
+        function closeModal() {
+            modal.classList.remove('open');
+            form.reset();
+        }
+
+        /**
+         * Xử lý gửi form (Thêm mới/Cập nhật)
+         */
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+
+            const isNew = !data.ID;
+            let studentId = data.ID;
+
+            if (isNew) {
+                // Tạo ID mới theo format HS + timestamp
+                studentId = 'HS' + Date.now();
+                data.ID = studentId; 
+                studentsData.push(data);
+                displayMessage('Thêm học sinh mới thành công!', 'success');
+            } else {
+                // Cập nhật học sinh hiện tại
+                const index = studentsData.findIndex(s => s.ID === studentId);
+                if (index !== -1) {
+                    studentsData[index] = { ...studentsData[index], ...data };
+                    displayMessage('Cập nhật học sinh thành công!', 'success');
+                }
+            }
+
+            // Quan trọng: Sắp xếp lại và đánh lại STT sau khi Thêm/Sửa
+            sortAndReindexStudents();
+            filterStudents(); // Render lại danh sách
+            closeModal();
+        });
+
+        // --- Thao tác Xóa và Xuất dữ liệu ---
+
+        /**
+         * Xóa học sinh và sắp xếp lại danh sách
+         * @param {string} id - ID của học sinh cần xóa
+         */
+        function deleteStudent(id) {
+            if (!window.confirm('Bạn có chắc chắn muốn xóa học sinh ' + id + ' này không?')) return;
+
+            const initialLength = studentsData.length;
+            studentsData = studentsData.filter(s => s.ID !== id);
+
+            if (studentsData.length < initialLength) {
+                // Quan trọng: Sắp xếp lại và đánh lại STT sau khi Xóa
+                sortAndReindexStudents();
+                filterStudents(); // Render lại danh sách
+                displayMessage('Xóa học sinh thành công!', 'success');
+            } else {
+                displayMessage('Không tìm thấy học sinh để xóa.', 'error');
+            }
+        }
+        
+        /**
+         * Xuất dữ liệu học sinh hiện tại thành tệp JSON và tải xuống
+         */
+        function exportStudents() {
+            if (studentsData.length === 0) {
+                displayMessage("Không có dữ liệu để xuất.", 'error');
+                return;
+            }
+            
+            // Xóa trường Ten (chỉ dùng cho nội bộ) và ánh xạ lại tên trường theo JSON của người dùng trước khi xuất
+            const dataToExport = studentsData.map(s => ({
+                "Khối": s.Khoi || '',
+                "LƠP": s.Lop || '', // Sử dụng LƠP như yêu cầu
+                "STT": s.STT, // Giữ STT đã được cập nhật
+                "TEN": s.HoVaTen, // Sử dụng TEN như yêu cầu
+                "ID": s.ID
+            }));
+            
+            const dataStr = JSON.stringify(dataToExport, null, 4);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'students_updated_' + new Date().toISOString().slice(0, 10) + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            displayMessage('Xuất dữ liệu thành công! Vui lòng kiểm tra thư mục tải xuống.', 'success');
+        }
+
+        // --- Khởi tạo ---
+        document.addEventListener('DOMContentLoaded', loadStudents);
+        // Đóng modal khi click ra ngoài 
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

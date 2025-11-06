@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danh Sách Câu Hỏi Trắc Nghiệm</title>
+    <!-- Tải Tailwind CSS để tạo kiểu nhanh chóng -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Thiết lập font Inter mặc định */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f9;
+        }
+        /* Định kiểu cho đáp án đúng */
+        .correct-answer-label {
+            font-weight: 700;
+            color: #059669; /* Xanh lá cây đậm */
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-gray-800 mb-6 border-b-4 border-indigo-500 pb-2">
+            Danh Sách Câu Hỏi Trắc Nghiệm
+        </h1>
+
+        <div id="loading-message" class="text-center p-4 text-indigo-500 font-medium">
+            Đang tải dữ liệu câu hỏi từ 'questions.json'...
+        </div>
+        
+        <div id="quiz-container" class="space-y-6 hidden">
+            <!-- Nội dung câu hỏi sẽ được chèn vào đây bởi JavaScript -->
+        </div>
+
+        <div id="error-message" class="hidden mt-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded shadow-md">
+            ⚠️ Đã xảy ra lỗi: Không thể tải tệp 'questions.json' hoặc dữ liệu không hợp lệ. Vui lòng kiểm tra console để biết chi tiết.
+        </div>
+    </div>
+
+    <script>
+        // Đường dẫn đến tệp JSON
+        const JSON_FILE_PATH = 'questions.json';
+
+        /**
+         * Hàm hiển thị danh sách câu hỏi
+         * @param {Array<Object>} questions - Mảng chứa các đối tượng câu hỏi.
+         */
+        function renderQuiz(questions) {
+            const quizContainer = document.getElementById('quiz-container');
+            const loadingMessage = document.getElementById('loading-message');
+            
+            // Ẩn thông báo tải và hiện container
+            loadingMessage.classList.add('hidden');
+            quizContainer.classList.remove('hidden');
+
+            let htmlContent = '';
+
+            questions.forEach((q, index) => {
+                // Ánh xạ các đáp án
+                const answersMap = {
+                    'A': q.Dap_an_A,
+                    'B': q.Dap_an_B,
+                    'C': q.Dap_an_C,
+                    'D': q.Dap_an_D
+                };
+
+                let answersHtml = ['A', 'B', 'C', 'D'].map(key => {
+                    const answerText = answersMap[key];
+                    const isCorrect = key === q.Dap_an_dung;
+
+                    // Tạo class cho đáp án đúng để in đậm và tô màu
+                    const classList = isCorrect
+                        ? 'correct-answer-label text-base md:text-lg p-2 rounded-lg bg-green-100/70 border border-green-300 shadow-sm transition duration-300 hover:shadow-lg'
+                        : 'text-base md:text-lg p-2 rounded-lg border border-gray-200 transition duration-300 hover:bg-gray-50';
+
+                    return `
+                        <div class="${classList}">
+                            <span class="font-semibold">${key}.</span> ${answerText}
+                        </div>
+                    `;
+                }).join('');
+
+                // Tạo khối HTML cho toàn bộ câu hỏi
+                htmlContent += `
+                    <div class="bg-white rounded-xl shadow-lg p-5 border-t-4 border-indigo-500 hover:shadow-xl transition duration-300">
+                        <!-- ID và Câu hỏi -->
+                        <h2 class="text-xl md:text-2xl font-bold text-gray-900 mb-4 leading-relaxed">
+                            <span class="text-indigo-600">${index + 1}. (${q.ID})</span> ${q.Cau_hoi}
+                        </h2>
+
+                        <!-- Danh sách Đáp án -->
+                        <div class="space-y-3 pl-4 border-l-2 border-gray-200">
+                            ${answersHtml}
+                        </div>
+
+                        <!-- Giải thích -->
+                        <div class="mt-4 pt-3 border-t border-gray-100">
+                            <p class="text-sm text-gray-600">
+                                <span class="font-bold text-gray-700">Đáp án đúng: ${q.Dap_an_dung}</span>
+                                <br/>
+                                <span class="font-bold text-gray-700">Giải thích:</span> ${q.Giai_thich}
+                            </p>
+                        </div>
+                    </div>
+                `;
+            });
+
+            quizContainer.innerHTML = htmlContent;
+        }
+
+        /**
+         * Hàm tải dữ liệu JSON và khởi tạo hiển thị
+         * Sử dụng fetch API để đọc file questions.json
+         */
+        async function initQuiz() {
+            const errorMessage = document.getElementById('error-message');
+            const loadingMessage = document.getElementById('loading-message');
+
+            try {
+                // Sử dụng fetch API để tải tệp JSON
+                // Đây là bước quan trọng thay thế việc sử dụng chuỗi JSON trực tiếp
+                const response = await fetch(JSON_FILE_PATH);
+
+                // Kiểm tra HTTP status code (ví dụ: 404 Not Found)
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status} khi tải ${JSON_FILE_PATH}`);
+                }
+
+                // Chuyển đổi phản hồi thành đối tượng JavaScript
+                const questions = await response.json();
+
+                // Kiểm tra nếu dữ liệu là một mảng và không rỗng
+                if (!Array.isArray(questions) || questions.length === 0) {
+                    throw new Error("Dữ liệu JSON không phải là mảng hoặc rỗng.");
+                }
+
+                // Hiển thị câu hỏi
+                renderQuiz(questions);
+
+            } catch (e) {
+                // Xử lý lỗi tải file hoặc lỗi parse JSON
+                console.error("Lỗi tải dữ liệu trắc nghiệm:", e);
+                loadingMessage.classList.add('hidden');
+                errorMessage.classList.remove('hidden');
+                errorMessage.innerHTML = `⚠️ Đã xảy ra lỗi: Không thể tải tệp 'questions.json'. Chi tiết lỗi: ${e.message}`;
+            }
+        }
+
+        // Khởi tạo ứng dụng khi DOM đã tải xong
+        document.addEventListener('DOMContentLoaded', initQuiz);
+    </script>
+</body>
+</html>

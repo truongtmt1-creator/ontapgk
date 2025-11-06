@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Câu Hỏi Trắc Nghiệm</title>
+    <!-- Tải Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f7f9; }
+        .modal-overlay {
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modal-overlay.open {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto p-4 md:p-8 max-w-5xl">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-gray-800 mb-2 border-b-4 border-indigo-500 pb-2">
+            Quản Lý Câu Hỏi Trắc Nghiệm
+        </h1>
+        <div class="text-sm text-red-700 bg-red-100 p-3 rounded-lg mb-6 border border-red-300">
+            ⚠️ **LƯU Ý QUAN TRỌNG:** Mọi thay đổi (Thêm, Sửa, Xóa) chỉ được lưu trong trình duyệt của bạn (localStorage). Vui lòng nhấn nút **"Xuất JSON"** để tải về và cập nhật tệp `questions.json` thật.
+        </div>
+
+        <!-- Thanh công cụ: Tìm kiếm và Thao tác -->
+        <div class="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-4 mb-8">
+            <input
+                type="text"
+                id="search-input"
+                placeholder="Tra cứu theo Nội dung hoặc ID..."
+                oninput="filterQuestions()"
+                class="flex-grow p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition"
+            />
+            <button
+                onclick="openModal()"
+                class="flex-shrink-0 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200 transform hover:scale-[1.02]"
+            >
+                + Thêm Câu Hỏi Mới
+            </button>
+            <button
+                onclick="exportQuestions()"
+                class="flex-shrink-0 px-6 py-3 bg-green-600 text-white font-bold rounded-xl shadow-lg hover:bg-green-700 transition duration-200"
+            >
+                Tải Xuống (Xuất JSON)
+            </button>
+        </div>
+
+        <!-- Danh sách Câu hỏi -->
+        <div id="quiz-list" class="space-y-6">
+            <!-- Questions rendered here -->
+            <div id="loading-message" class="text-center p-12 text-indigo-600 text-lg font-medium">Đang tải câu hỏi...</div>
+        </div>
+
+        <!-- Message/Error Container -->
+        <div id="message-container" class="mt-4 hidden p-3 rounded-lg"></div>
+    </div>
+
+    <!-- Modal Form (Chỉnh sửa/Thêm mới) -->
+    <div id="question-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
+            <h2 id="modal-title" class="text-2xl font-bold text-indigo-600 mb-6 border-b pb-2">Thêm Câu Hỏi Mới</h2>
+            <form id="question-form" class="space-y-4">
+                <!-- ID Câu hỏi (Hiển thị khi chỉnh sửa) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">ID Câu hỏi</label>
+                    <input 
+                        type="text" 
+                        id="question-ID-display" 
+                        readonly
+                        class="mt-1 block w-full rounded-lg border-gray-300 bg-gray-100 text-gray-600 shadow-sm border p-2 font-mono"
+                    />
+                    <!-- Input ẩn để gửi ID khi submit form -->
+                    <input type="hidden" id="question-ID-hidden" name="ID"/>
+                </div>
+
+                <!-- Câu hỏi -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Nội dung Câu hỏi (*)</label>
+                    <textarea
+                        id="Cau_hoi" name="Cau_hoi" required rows="3"
+                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2"
+                        placeholder="Nhập nội dung câu hỏi..."
+                    ></textarea>
+                </div>
+
+                <!-- Đáp án A, B, C, D -->
+                <div id="answers-container">
+                    <!-- Đáp án sẽ được JS tạo ra ở đây -->
+                </div>
+
+                <!-- Đáp án Đúng và Giải thích -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Đáp án Đúng (*)</label>
+                        <select
+                            id="Dap_an_dung" name="Dap_an_dung" required
+                            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2"
+                        >
+                            <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Loại Câu hỏi</label>
+                        <select
+                            id="Loai_cau_hoi" name="Loai_cau_hoi"
+                            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2"
+                        >
+                            <option value="single">Một đáp án</option>
+                            <option value="multiple" disabled>Nhiều đáp án (Chưa hỗ trợ)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Giải thích</label>
+                    <textarea
+                        id="Giai_thich" name="Giai_thich" rows="2"
+                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2"
+                        placeholder="Giải thích chi tiết cho đáp án đúng..."
+                    ></textarea>
+                </div>
+
+                <!-- Nút thao tác -->
+                <div class="flex justify-end space-x-3 pt-4 border-t">
+                    <button
+                        type="button"
+                        onclick="closeModal()"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition duration-150"
+                    >
+                        Hủy
+                    </button>
+                    <button
+                        type="submit"
+                        class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150"
+                    >
+                        Lưu Câu Hỏi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- Cấu hình và Biến toàn cục ---
+        const JSON_FILE_PATH = 'questions.json';
+        const LOCAL_STORAGE_KEY = 'quizQuestionsData';
+        let questionsData = [];
+        const quizList = document.getElementById('quiz-list');
+        const modal = document.getElementById('question-modal');
+        const form = document.getElementById('question-form');
+        const messageContainer = document.getElementById('message-container');
+        const questionIDDisplay = document.getElementById('question-ID-display');
+        const questionIDHidden = document.getElementById('question-ID-hidden');
+
+        // --- Khởi tạo và Tải dữ liệu ---
+
+        /**
+         * Tải dữ liệu từ localStorage (ưu tiên) hoặc từ questions.json (lần đầu)
+         */
+        async function loadQuestions() {
+            const loadingMessage = document.getElementById('loading-message');
+            
+            // 1. Cố gắng tải từ LocalStorage
+            const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (localData) {
+                questionsData = JSON.parse(localData);
+                console.log("Dữ liệu được tải từ localStorage.");
+                renderQuestions(questionsData);
+                return;
+            }
+
+            // 2. Nếu không có trong LocalStorage, tải từ questions.json
+            try {
+                const response = await fetch(JSON_FILE_PATH);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                questionsData = await response.json();
+                saveQuestionsToLocal(questionsData);
+                console.log("Dữ liệu được tải thành công từ questions.json và lưu vào localStorage.");
+            } catch (e) {
+                console.warn(`Không thể tải questions.json (hoặc tệp không tồn tại). Khởi tạo dữ liệu rỗng. Chi tiết: ${e.message}`);
+                questionsData = [];
+            } finally {
+                if (loadingMessage) loadingMessage.remove(); // Xóa thông báo tải
+                renderQuestions(questionsData);
+            }
+        }
+
+        /**
+         * Lưu mảng câu hỏi hiện tại vào localStorage
+         * @param {Array} data - Mảng câu hỏi
+         */
+        function saveQuestionsToLocal(data) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+        }
+
+        /**
+         * Hiển thị thông báo (thành công/lỗi)
+         * @param {string} msg - Nội dung thông báo
+         * @param {string} type - 'success' hoặc 'error'
+         */
+        function displayMessage(msg, type) {
+            messageContainer.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700', 'border-red-300', 'border-green-300');
+            
+            if (type === 'success') {
+                messageContainer.classList.add('bg-green-100', 'text-green-700', 'border-green-300');
+            } else {
+                messageContainer.classList.add('bg-red-100', 'text-red-700', 'border-red-300');
+            }
+            messageContainer.innerHTML = msg;
+            messageContainer.classList.remove('hidden');
+            
+            setTimeout(() => {
+                messageContainer.classList.add('hidden');
+            }, 5000);
+        }
+
+        // --- Render UI ---
+
+        /**
+         * Render danh sách câu hỏi ra giao diện
+         * @param {Array} questions - Mảng câu hỏi đã được lọc/sắp xếp
+         */
+        function renderQuestions(questions) {
+            if (questions.length === 0) {
+                quizList.innerHTML = `<div class="p-8 bg-white rounded-xl shadow-lg text-center text-gray-500">
+                    Không tìm thấy câu hỏi nào. Hãy thêm câu hỏi mới!
+                </div>`;
+                return;
+            }
+
+            const htmlContent = questions.map((q, index) => {
+                const answersHtml = ['A', 'B', 'C', 'D'].map(key => `
+                    <p class="${q.Dap_an_dung === key ? 'font-semibold text-green-700 bg-green-50 p-1 rounded-md' : 'text-gray-600 p-1'}">
+                        ${key}. ${q[`Dap_an_${key}`] || 'Không có nội dung'}
+                    </p>
+                `).join('');
+
+                return `
+                    <div class="bg-white rounded-xl shadow-lg p-5 border-l-8 border-indigo-500 transition duration-300 hover:shadow-xl">
+                        <div class="flex justify-between items-start mb-3">
+                            <h2 class="text-xl font-bold text-gray-900 leading-relaxed">
+                                <span class="text-indigo-600">Q.${(index + 1)} (${q.ID})</span> ${q.Cau_hoi}
+                            </h2>
+                            <div class="flex space-x-2 flex-shrink-0">
+                                <button
+                                    onclick="openModal('${q.ID}')"
+                                    class="p-2 text-sm bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition"
+                                    title="Chỉnh sửa"
+                                >
+                                    Sửa
+                                </button>
+                                <button
+                                    onclick="deleteQuestion('${q.ID}')"
+                                    class="p-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
+                                    title="Xóa"
+                                >
+                                    Xóa
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Chi tiết đáp án -->
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                            ${answersHtml}
+                        </div>
+
+                        <!-- Giải thích -->
+                        <div class="mt-3 pt-3 border-t border-gray-100">
+                            <p class="text-sm text-gray-500">
+                                <span class="font-bold text-gray-700">Đ.Á: ${q.Dap_an_dung}</span> |
+                                <span class="italic ml-2">${q.Giai_thich || 'Không có giải thích'}</span>
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            quizList.innerHTML = htmlContent;
+        }
+
+        /**
+         * Lọc và render lại danh sách câu hỏi
+         */
+        function filterQuestions() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const filtered = questionsData.filter(q => 
+                q.Cau_hoi.toLowerCase().includes(searchTerm) || 
+                (q.ID && q.ID.toLowerCase().includes(searchTerm))
+            ).sort((a, b) => (a.ID || '').localeCompare(b.ID || ''));
+            
+            renderQuestions(filtered);
+        }
+
+        // --- Modal và Form Logic ---
+
+        /**
+         * Mở modal để thêm mới hoặc chỉnh sửa
+         * @param {string} [id=null] - ID của câu hỏi cần chỉnh sửa. Nếu null là thêm mới.
+         */
+        function openModal(id = null) {
+            document.getElementById('answers-container').innerHTML = ['A', 'B', 'C', 'D'].map(key => `
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Đáp án ${key} ${key === 'A' ? '(*)' : ''}</label>
+                    <input
+                        type="text"
+                        id="Dap_an_${key}" name="Dap_an_${key}"
+                        ${key === 'A' ? 'required' : ''}
+                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border p-2"
+                        placeholder="Nội dung đáp án ${key}"
+                    />
+                </div>
+            `).join('');
+
+            form.reset();
+            let questionToEdit = null;
+
+            if (id) {
+                questionToEdit = questionsData.find(q => q.ID === id);
+                document.getElementById('modal-title').textContent = 'Chỉnh Sửa Câu Hỏi';
+                
+                // Cập nhật ID hiển thị và ID ẩn
+                questionIDDisplay.value = id;
+                questionIDHidden.value = id;
+                
+                // Điền dữ liệu vào form
+                document.getElementById('Cau_hoi').value = questionToEdit.Cau_hoi || '';
+                document.getElementById('Dap_an_dung').value = questionToEdit.Dap_an_dung || 'A';
+                document.getElementById('Giai_thich').value = questionToEdit.Giai_thich || '';
+                document.getElementById('Loai_cau_hoi').value = questionToEdit.Loai_cau_hoi || 'single';
+
+                ['A', 'B', 'C', 'D'].forEach(key => {
+                    const input = document.getElementById(`Dap_an_${key}`);
+                    if (input) {
+                        input.value = questionToEdit[`Dap_an_${key}`] || '';
+                    }
+                });
+
+            } else {
+                document.getElementById('modal-title').textContent = 'Thêm Câu Hỏi Mới';
+                // Xóa ID khi thêm mới
+                questionIDDisplay.value = 'Tự động tạo';
+                questionIDHidden.value = ''; 
+            }
+            
+            modal.classList.add('open');
+        }
+
+        /**
+         * Đóng modal
+         */
+        function closeModal() {
+            modal.classList.remove('open');
+            form.reset();
+        }
+
+        /**
+         * Xử lý gửi form (Thêm mới/Cập nhật)
+         */
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            const data = {};
+            // Thu thập tất cả dữ liệu form, bao gồm ID
+            formData.forEach((value, key) => data[key] = value);
+
+            const isNew = !data.ID; // Dùng 'ID' (uppercase) để kiểm tra
+            let questionId = data.ID;
+
+            if (isNew) {
+                // Tạo ID mới theo format Q + timestamp
+                questionId = 'Q' + Date.now();
+                data.ID = questionId; // Gán ID mới vào đối tượng
+                questionsData.push(data);
+                displayMessage('Thêm câu hỏi mới thành công!', 'success');
+            } else {
+                // Cập nhật câu hỏi hiện tại
+                const index = questionsData.findIndex(q => q.ID === questionId);
+                if (index !== -1) {
+                    // Cập nhật dữ liệu
+                    questionsData[index] = { ...questionsData[index], ...data };
+                    displayMessage('Cập nhật câu hỏi thành công!', 'success');
+                }
+            }
+
+            saveQuestionsToLocal(questionsData);
+            filterQuestions();
+            closeModal();
+        });
+
+        // --- Thao tác Xóa và Xuất dữ liệu ---
+
+        /**
+         * Xóa câu hỏi
+         * @param {string} id - ID của câu hỏi cần xóa
+         */
+        function deleteQuestion(id) {
+            // Thay thế alert/confirm bằng các phương thức được phép
+            if (!window.confirm('Bạn có chắc chắn muốn xóa câu hỏi ' + id + ' này không?')) return;
+
+            const initialLength = questionsData.length;
+            questionsData = questionsData.filter(q => q.ID !== id);
+
+            if (questionsData.length < initialLength) {
+                saveQuestionsToLocal(questionsData);
+                filterQuestions();
+                displayMessage('Xóa câu hỏi thành công!', 'success');
+            } else {
+                displayMessage('Không tìm thấy câu hỏi để xóa.', 'error');
+            }
+        }
+        
+        /**
+         * Xuất dữ liệu câu hỏi hiện tại thành tệp JSON và tải xuống
+         */
+        function exportQuestions() {
+            if (questionsData.length === 0) {
+                displayMessage("Không có dữ liệu để xuất.", 'error');
+                return;
+            }
+            
+            // Dữ liệu JSON cuối cùng chỉ cần các trường cần thiết
+            const dataStr = JSON.stringify(questionsData, null, 4);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'questions_updated_' + new Date().toISOString().slice(0, 10) + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            displayMessage('Xuất dữ liệu thành công! Vui lòng kiểm tra thư mục tải xuống.', 'success');
+        }
+
+        // --- Khởi tạo ---
+        document.addEventListener('DOMContentLoaded', loadQuestions);
+        // Đóng modal khi click ra ngoài (chỉ khi click trực tiếp vào overlay)
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
