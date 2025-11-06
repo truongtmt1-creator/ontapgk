@@ -384,13 +384,25 @@ async function signalQuizStart() {
     console.warn("signalQuizStart đã bị vô hiệu hóa để tránh lỗi CORS.");
 }
 
-/**
- * Cập nhật số người đang làm bài (GET) (bị lỗi CORS với fetch) => Vô hiệu hóa
- */
 async function updateActiveUsersCount() {
     const counterDisplay = document.getElementById('active-users-counter');
-    if (counterDisplay) {
-        counterDisplay.innerHTML = 'Thống kê đang <span class="text-red-600 font-bold">tạm tắt</span> (Lỗi CORS).';
+    if (!counterDisplay) return;
+
+    const activeUsersApiUrl = GOOGLE_SHEET_URL + '?action=active'; 
+    
+    try {
+        const response = await fetch(activeUsersApiUrl); 
+        const result = await response.json();
+        
+        if (result && typeof result.count === 'number') {
+            counterDisplay.innerHTML = `Hiện đang có: <span class="text-xl font-bold text-red-600">${result.count}</span> người làm bài.`;
+        } else {
+            counterDisplay.textContent = 'Đang tải thống kê...';
+        }
+
+    } catch (error) {
+        console.error("Lỗi khi tải số người đang làm bài:", error);
+        counterDisplay.textContent = 'Lỗi tải...';
     }
 }
 
@@ -577,13 +589,21 @@ function enableContentSecurity() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Kích hoạt bảo mật giao diện
     enableContentSecurity();
     
-    // ⭐ Vô hiệu hóa/Thay thế các tính năng thống kê bị lỗi CORS ⭐
+    // ⭐ 1. Khởi tạo và Hiển thị bộ đếm truy cập (Chỉ gọi 1 lần)
     updateVisitCounter();
-    updateActiveUsersCount(); // Hàm này không cần setInterval nữa vì nó đã bị vô hiệu hóa
 
+    // ⭐ 2. Thêm div hiển thị số người đang làm bài vào Student Info (Đã có)
+   
+
+    // ⭐ 3. Cập nhật số người đang làm bài và thiết lập Interval
+    updateActiveUsersCount(); 
+    setInterval(updateActiveUsersCount, 45000); // Cập nhật mỗi 45 giây
+    
     startBtn.setAttribute('disabled', 'disabled');
     startBtn.textContent = 'Đang Tải Dữ Liệu...';
+    // Khởi động quá trình tải dữ liệu
     loadExternalData();
 });
