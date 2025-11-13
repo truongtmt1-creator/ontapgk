@@ -90,7 +90,7 @@ async function loadExternalData() {
         
         console.log("Đã tải thành công dữ liệu câu hỏi và học sinh.");
         startBtn.removeAttribute('disabled');
-        startBtn.textContent = 'BẮT ĐẦU BÀI THI';
+        startBtn.textContent = 'BẮT ĐẦU LÀM BÀI';
 
         studentClassInput.addEventListener('change', updateStudentName);
         studentSttInput.addEventListener('input', updateStudentName); 
@@ -194,7 +194,7 @@ function startQuiz() {
 
     // 🔥 FIX LỖI: Bắt buộc Tên phải được tra cứu thành công (có disabled)
     if (!studentInfo.TEN || !studentInfo.LƠP || !studentInfo.STT || !studentNameInput.hasAttribute('disabled')) {
-        alert('Vui lòng nhập đầy đủ Lớp, STT, và BẮT BUỘC Tên học sinh phải được tra cứu thành công (ô tên bị khóa tự động).');
+        alert('Vui lòng nhập đầy đủ Lớp, STT.');
         return;
     }
     
