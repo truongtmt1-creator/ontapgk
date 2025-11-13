@@ -397,13 +397,13 @@
     },
     {
         "ID": "Q37",
-        "Cau_hoi": "Trong các câu sau đây, câu nào sai",
+        "Cau_hoi": "Trong các câu sau đây, câu nào không sai",
         "Loai_cau_hoi": "single",
         "Dap_an_A": "Số lượng người tham gia kết bạn trên mạng xã hội được giới hạn dưới 10 người",
         "Dap_an_B": "Mạng xã hội thường là một ứng dụng web",
         "Dap_an_C": "Người dùng không thể đưa thông tin lên mạng xã hội",
         "Dap_an_D": "Người dùng chỉ có thể chia sẻ bài viết dưới dạng văn bản cho bạn bè trên mạng xã hội.",
-        "Dap_an_dung": "A",
+        "Dap_an_dung": "B",
         "Giai_thich": "Mạng xã hội cho phép kết nối không giới hạn số lượng bạn bè."
     },
     {
