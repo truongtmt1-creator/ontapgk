@@ -16,18 +16,14 @@ const studentClassInput = document.getElementById('student-class');
 const studentSttInput = document.getElementById('student-stt');
 const studentNameInput = document.getElementById('student-name');
 
-// ⭐ DOM MỚI: Cho bộ đếm truy cập
-const visitCounterElement = document.getElementById('visit-counter');
-
-// ⭐ LƯU Ý: Biến GOOGLE_SHEET_URL KHÔNG CÒN ĐƯỢC DÙNG TRỰC TIẾP VỚI fetch() ⭐
-// Thay vào đó, nó được gán cho thuộc tính `action` trong index.html
+// Web App URL được giữ lại cho form submission, không dùng cho fetch()
 const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxHbV4GQguSKfE4erMY-XLC73LZLt9cIiiFbpDoaC1omilg4LXDTP5CgRDlrMufT0Ixcg/exec';
 
 
 // Biến trạng thái Quiz
-let questions = [];
-let userAnswers = {};
-let studentInfo = { TEN: '', LƠP: '', STT: '' };
+let questions = []; // Câu hỏi đã được chọn cho bài thi
+let userAnswers = {}; // Đáp án đã chọn của học sinh
+let studentInfo = { TEN: '', LƠP: '', STT: '', Khoi: '' }; // Đã thêm Khoi cho đồng bộ form submit
 
 // Biến cho Timer và Kết quả
 let timerInterval = null;
@@ -82,6 +78,7 @@ async function loadExternalData() {
         MOCK_QUESTIONS = await questionsResponse.json();
         
         MOCK_QUESTIONS.forEach(q => {
+            // Chuẩn hóa và mã hóa đáp án đúng
             if (q.Dap_an_dung) {
                 q.Dap_an_dung = encodeAnswer(q.Dap_an_dung);
             }
@@ -116,12 +113,16 @@ function updateStudentName() {
 
         if (foundStudent) {
             studentNameInput.value = foundStudent.TEN; 
+            // Lưu Khối vào biến toàn cục (cho mục đích Form Submit)
+            studentInfo.Khoi = foundStudent.Khoi || ''; 
+
             studentNameInput.setAttribute('disabled', 'disabled'); 
             studentNameInput.style.backgroundColor = '#e9ecef';
             studentNameInput.style.fontWeight = 'bold';
             studentNameInput.setAttribute('placeholder', foundStudent.TEN);
         } else {
             studentNameInput.value = '';
+            studentInfo.Khoi = ''; // Xóa Khối nếu không tìm thấy
             studentNameInput.removeAttribute('disabled');
             studentNameInput.style.backgroundColor = '#ffffff';
             studentNameInput.style.fontWeight = 'normal';
@@ -129,6 +130,7 @@ function updateStudentName() {
         }
     } else {
         studentNameInput.value = '';
+        studentInfo.Khoi = '';
         studentNameInput.removeAttribute('disabled');
         studentNameInput.style.backgroundColor = '#ffffff';
         studentNameInput.style.fontWeight = 'normal';
@@ -190,8 +192,9 @@ function startQuiz() {
     studentInfo.LƠP = studentClassInput.value.trim();
     studentInfo.STT = studentSttInput.value.trim();
 
+    // 🔥 FIX LỖI: Bắt buộc Tên phải được tra cứu thành công (có disabled)
     if (!studentInfo.TEN || !studentInfo.LƠP || !studentInfo.STT || !studentNameInput.hasAttribute('disabled')) {
-        alert('Vui lòng nhập đầy đủ Lớp, STT, và đảm bảo Tên học sinh đã được tra cứu thành công (ô tên bị khóa).');
+        alert('Vui lòng nhập đầy đủ Lớp, STT, và BẮT BUỘC Tên học sinh phải được tra cứu thành công (ô tên bị khóa tự động).');
         return;
     }
     
@@ -200,9 +203,6 @@ function startQuiz() {
     quizContainer.classList.remove('hidden');
     submitBtn.classList.remove('hidden');
     startTimer();
-    
-    // ⭐ Vô hiệu hóa signalQuizStart do lỗi CORS - Khách hàng đã chấp nhận tính năng này không hoạt động ⭐
-    // signalQuizStart(); 
 }
 window.startQuiz = startQuiz;
 
@@ -328,16 +328,16 @@ function submitQuiz() {
             question: q.Cau_hoi,
             isCorrect: isCorrect,
             correctKeys: correctAnswerKeys, 
-            userKeys: userAnswerKeys,       
-            options: optionsMap,            
+            userKeys: userAnswerKeys,      
+            options: optionsMap,           
             explanation: q.Giai_thich,
         });
     });
 
     saveResultLocally(score, timeTaken); 
-    renderResults(score, reviewData, timeTaken);     
+    renderResults(score, reviewData, timeTaken);    
 
-    // ⭐ CẬP NHẬT: Gửi điểm bằng Form Submit (khắc phục CORS) ⭐
+    // ⭐ Gửi điểm bằng Form Submit (khắc phục CORS) ⭐
     sendResultToGoogleSheet(score, timeTaken);
 
     // Dọn dẹp localStorage
@@ -354,18 +354,37 @@ window.submitQuiz = submitQuiz;
 
 /**
  * Gửi kết quả bài thi cuối cùng lên Google Sheets (Sheet1) bằng cách submit form ẩn.
- * Phương pháp này tránh lỗi CORS, nhưng sẽ mở một tab mới.
+ * Phương pháp này tránh lỗi CORS.
  */
 function sendResultToGoogleSheet(score, time) {
     const form = document.getElementById('submission-form');
     
     // Cập nhật dữ liệu cho form
-    document.getElementById('form-action').value = ''; // Ghi kết quả điểm
+    document.getElementById('form-action').value = 'logResult'; // Action cho doPost trong Apps Script
     document.getElementById('form-name').value = studentInfo.TEN;
     document.getElementById('form-class').value = studentInfo.LƠP;
     document.getElementById('form-stt').value = studentInfo.STT;
+    document.getElementById('form-khoi').value = studentInfo.Khoi; // Thêm Khối
     document.getElementById('form-score').value = `${score} / ${questions.length}`; 
     document.getElementById('form-time').value = time;
+    
+    // Lưu chi tiết đáp án vào một trường ẩn (JSON.stringify chi tiết)
+    const answersDetail = questions.map(q => {
+        const userAnswerKeys = (userAnswers[q.ID] || []).sort();
+        const decodedAnswer = decodeAnswer(q.Dap_an_dung);
+        const correctAnswerKeys = parseCorrectAnswer(decodedAnswer).sort();
+        const isCorrect = userAnswerKeys.length === correctAnswerKeys.length && userAnswerKeys.every((key, i) => key === correctAnswerKeys[i]);
+        
+        return {
+            ID: q.ID,
+            Q: q.Cau_hoi,
+            Your: userAnswerKeys.join(','),
+            Correct: correctAnswerKeys.join(','),
+            Result: isCorrect ? 'ĐÚNG' : 'SAI'
+        };
+    });
+    
+    document.getElementById('form-answers-detail').value = JSON.stringify(answersDetail);
 
     // Gửi form
     form.submit();
@@ -374,63 +393,16 @@ function sendResultToGoogleSheet(score, time) {
 }
 
 // ----------------------------------------------------------------------------------
-// ⭐ VÔ HIỆU HÓA CÁC HÀM SỬ DỤNG FETCH() GÂY LỖI CORS TRONG MÔI TRƯỜNG GH PAGES ⭐
+// ⭐ VÔ HIỆU HÓA CÁC HÀM SỬ DỤNG FETCH() GÂY LỖI CORS ⭐
 // ----------------------------------------------------------------------------------
 
-/**
- * Gửi tín hiệu POST (bị lỗi CORS với fetch) => Vô hiệu hóa
- */
-async function signalQuizStart() {
-    console.warn("signalQuizStart đã bị vô hiệu hóa để tránh lỗi CORS.");
-}
-
 async function updateActiveUsersCount() {
-    const counterDisplay = document.getElementById('active-users-counter');
-    if (!counterDisplay) return;
-
-    const activeUsersApiUrl = GOOGLE_SHEET_URL + '?action=active'; 
-    
-    try {
-        const response = await fetch(activeUsersApiUrl); 
-        const result = await response.json();
-        
-        if (result && typeof result.count === 'number') {
-            counterDisplay.innerHTML = `Hiện đang có: <span class="text-xl font-bold text-red-600">${result.count}</span> người làm bài.`;
-        } else {
-            counterDisplay.textContent = 'Đang tải thống kê...';
-        }
-
-    } catch (error) {
-        console.error("Lỗi khi tải số người đang làm bài:", error);
-        counterDisplay.textContent = 'Lỗi tải...';
-    }
+    console.warn("Tính năng Bộ đếm người đang hoạt động đã bị vô hiệu hóa.");
 }
 
-/**
- * Tăng và lấy tổng số lượt truy cập (GET action=count) (bị lỗi CORS với fetch) => Vô hiệu hóa
- */
 async function updateVisitCounter() {
-    if (!visitCounterElement) return; 
-
-    // Gửi yêu cầu GET đến Apps Script kèm tham số action=count
-    const counterApiUrl = GOOGLE_SHEET_URL + '?action=count'; 
-    
-    try {
-        const response = await fetch(counterApiUrl);
-        const result = await response.json();
-        
-        if (result && typeof result.totalVisits === 'number') {
-            // Cập nhật số lượt truy cập lên giao diện
-            visitCounterElement.textContent = result.totalVisits.toLocaleString('en-US'); 
-        } else {
-            visitCounterElement.textContent = '0';
-        }
-    } catch (error) {
-        console.error("Lỗi khi tải bộ đếm truy cập:", error);
-        visitCounterElement.textContent = 'Lỗi';
-    }
+    console.warn("Tính năng Bộ đếm truy cập đã bị vô hiệu hóa.");
 }
-
 
 // ====================================================================================================================
 // --- LƯU TRỮ VÀ HIỂN THỊ KẾT QUẢ (CẬP NHẬT REVIEW) ---
@@ -467,6 +439,7 @@ function renderResults(score, reviewData, time) {
             <p class="text-lg">Họ và Tên: <span class="font-semibold">${studentInfo.TEN}</span> (Lớp: ${studentInfo.LƠP})</p>
             <p class="text-xl">Điểm số: <span class="text-green-600 font-extrabold">${score} / ${questions.length}</span></p>
             <p class="text-base">Thời gian hoàn thành: ${time}</p>
+            <p class="text-sm mt-2 text-red-600 font-bold">LƯU Ý: ĐÃ NỘP BÀI. VUI LÒNG KHÔNG ĐÓNG TAB NÀY TRƯỚC KHI XÁC NHẬN KẾT QUẢ ĐƯỢC LƯU.</p>
         </div>
 
         <button id="toggle-review-btn" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-500 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 mb-6" onclick="toggleReview()">
@@ -493,8 +466,7 @@ function renderResults(score, reviewData, time) {
                 
                 return item.userKeys.map(key => {
                     const content = item.options[key] || `[Không tìm thấy nội dung cho ${key}]`;
-                    // Đã thêm thẻ span để làm nổi bật (A), (B)
-                    return `<span class="font-semibold text-gray-700">(${key})</span> ${content}`; 
+                    return `<span class="font-semibold text-gray-700">(${key})</span> ${content}`;  
                 }).join('<br>'); // Dùng <br> để xuống dòng cho mỗi đáp án
             };
             
@@ -513,12 +485,12 @@ function renderResults(score, reviewData, time) {
                     <p class="mt-2">Trạng thái: <span class="text-red-600 font-bold">${statusText}</span></p>
                     
                     <p class="mt-2 text-sm">
-                        <span class="font-medium block mb-1">Đáp án của bạn:</span> 
+                        <span class="font-medium block mb-1">Đáp án của bạn:</span>  
                         <span class="text-red-600 block pl-4">${getUserAnswersContent()}</span>
                     </p>
                     
                     <p class="text-sm mt-2">
-                        <span class="font-medium block mb-1">Đáp án đúng:</span> 
+                        <span class="font-medium block mb-1">Đáp án đúng:</span>  
                         <span class="text-green-600 font-semibold block pl-4">${getCorrectAnswersContent()}</span>
                     </p>
                     
@@ -607,15 +579,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Kích hoạt bảo mật giao diện
     enableContentSecurity();
     
-    // ⭐ 1. Khởi tạo và Hiển thị bộ đếm truy cập (Chỉ gọi 1 lần)
-    updateVisitCounter();
-
-    // ⭐ 2. Thêm div hiển thị số người đang làm bài vào Student Info (Đã có)
-   
-
-    // ⭐ 3. Cập nhật số người đang làm bài và thiết lập Interval
-    updateActiveUsersCount(); 
-    setInterval(updateActiveUsersCount, 45000); // Cập nhật mỗi 45 giây
+    // Vô hiệu hóa các hàm fetch() gây lỗi CORS
+    // updateVisitCounter();
+    // updateActiveUsersCount(); 
     
     startBtn.setAttribute('disabled', 'disabled');
     startBtn.textContent = 'Đang Tải Dữ Liệu...';
